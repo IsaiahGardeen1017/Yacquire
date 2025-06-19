@@ -2,13 +2,15 @@
   "compilerOptions": {
     "strict": true,
     "target": "ESNext",
-    "module": "NodeNext",
+    "module": "ESNext",
     "allowSyntheticDefaultImports": true,
     "allowArbitraryExtensions": true,
     "esModuleInterop": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "types": ["vite/client", "@testing-library/jest-dom"],
-    "outDir": "build/server"
+    "outDir": "build/server",
+
+    "moduleResolution": "bundler" // Or "node"
   }
 }
