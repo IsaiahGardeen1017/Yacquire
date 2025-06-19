@@ -38,8 +38,10 @@ export class WebSocketServerCommunication extends ServerCommunication {
 
           this.onMessage(clientId, uint8Array);
         } else {
+          console.log('message', message);
+          webSocket.send(message + '--' + message);
           // messages that are not binary are not allowed
-          webSocket.close();
+          // webSocket.close();
         }
       });
 
