@@ -6,6 +6,7 @@ import * as stylesApp from '../App.module.css';
 import { allGameModes, gameModeToString } from '../helpers.js';
 import { teamNumberToCSSClassName } from '../styleHelpers.js';
 import * as styles from './GameSetupUI.module.css';
+import { createSignal } from 'solid-js';
 
 export function GameSetupUI(props: {
   gameMode: PB_GameMode;
@@ -22,6 +23,7 @@ export function GameSetupUI(props: {
   onSwapPositions: ((position1: number, position2: number) => void) | undefined;
   onKickUser: ((userId: number) => void) | undefined;
   onApprove: (() => void) | undefined;
+  onAddBot?: (() => void);
 }) {
   const numUsersInGame = createMemo(() =>
     props.users.reduce((count, user) => count + (user !== null ? 1 : 0), 0),
@@ -34,6 +36,8 @@ export function GameSetupUI(props: {
   const numTeams = createMemo(
     () => gameModeToNumPlayers.get(props.gameMode)! / gameModeToTeamSize.get(props.gameMode)!,
   );
+
+  const [botType, setBotType] = createSignal('default');
 
   return (
     <div class={styles.root}>
@@ -88,6 +92,23 @@ export function GameSetupUI(props: {
             </For>
           </select>
         </Show>
+      </div>
+
+      <div style={{ 'margin-bottom': '1em' }}>
+        <label for="bot-type-select">Bot Type: </label>
+        <select
+          id="bot-type-select"
+          value={botType()}
+          onChange={e => setBotType(e.currentTarget.value)}
+          style={{ 'margin-right': '0.5em' }}
+        >
+          <option value="default">default</option>
+        </select>
+        <input
+          type="button"
+          value="Add Bot"
+          onClick={() => props.onAddBot && props.onAddBot()}
+        />
       </div>
 
       <table>
