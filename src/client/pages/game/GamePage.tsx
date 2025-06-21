@@ -218,6 +218,7 @@ export function GamePage(props: { client: Client }) {
                   }
                   onKickUser={iAmHost() ? gameManager.gameSetupActions.kickUser : undefined}
                   onApprove={gameManager.gameSetupActions.approve}
+                  onAddBot={iAmHost() ? gameManager.gameSetupActions.addBot : undefined}
                 />
               </div>
             </Match>

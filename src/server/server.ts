@@ -56,6 +56,7 @@ export class Server {
     }
 
     private onConnect(clientId: number) {
+        console.log('GRINGLECCKTING!!');
         const client = new Client(
             clientId,
             (message) =>

@@ -362,6 +362,21 @@ export function createGameManager(
     );
   }
 
+  function addBot(botType: string) {
+    sendMessage(
+      PB_MessageToServer.toBinary({
+        game: {
+          gameSetupAction: {
+            numberOfGameSetupChanges,
+            addBot: {
+              botType,
+            },
+          },
+        },
+      }),
+    );
+  }
+
   function sendGameActionMessage(gameAction: PB_GameAction) {
     const myUser = myUserAccessor();
     const playerId = myUser && gameSetup ? gameSetup.users.indexOf(myUser) : -1;
@@ -453,6 +468,7 @@ export function createGameManager(
       changePlayerArrangementMode,
       swapPositions,
       kickUser,
+      addBot,
     },
     gameActions: {
       playTile,

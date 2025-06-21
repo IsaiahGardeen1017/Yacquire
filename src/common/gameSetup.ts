@@ -4,8 +4,8 @@ import {
   gameModeToTeamSize,
   shuffleArray,
 } from './helpers.js';
-import { PB_GameMode, PB_GameSetupChange, PB_PlayerArrangementMode } from './pb.js';
-import { type User } from './user.js';
+import { PB_GameMode, PB_GameSetupChange, PB_MessageToClient_Game_UserIdAndUsername, PB_PlayerArrangementMode } from './pb.js';
+import { User } from './user.js';
 
 export class GameSetup {
   users: (User | null)[];
@@ -65,6 +65,45 @@ export class GameSetup {
         break;
       }
     }
+  }
+
+  addBot(botType: string): User | null {
+    // Find an empty position
+    const emptyPosition = this.users.findIndex(user => user === null);
+    if (emptyPosition === -1) {
+      return null; // No empty positions
+    }
+
+    // Generate a unique bot ID (negative to avoid conflicts with real users)
+    let botId = -1;
+    while (this.userIdToUser.has(botId)) {
+      botId--;
+    }
+
+    // Create a bot user
+    const botUser = new User(botId, `Bot (${botType})`);
+
+    // Register the bot user in the userIdToUser map
+    this.userIdToUser.set(botId, botUser);
+
+    this.users = [...this.users];
+    this.users[emptyPosition] = botUser;
+    this.usersSet.add(botUser);
+
+    this.approvals = defaultApprovals[gameModeToNumPlayers.get(this.gameMode)!];
+    this.finalUsers = null;
+
+
+    this.history.push(
+      PB_GameSetupChange.create({
+        userAdded: {
+          userId: botUser.id,
+        },
+      }),
+    );
+
+    return botUser;
+
   }
 
   removeUser(user: User) {
@@ -283,7 +322,10 @@ export class GameSetup {
     }
   }
 
+
+
   processChange(gameSetupChange: PB_GameSetupChange) {
+    console.log(`GWAGA ${Object.keys(gameSetupChange)}`);
     if (gameSetupChange.userAdded) {
       this.addUser(this.userIdToUser.get(gameSetupChange.userAdded.userId)!);
     } else if (gameSetupChange.userRemoved) {

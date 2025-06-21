@@ -20,7 +20,7 @@ export default defineConfig({
       : undefined,
   ],
   server: {
-    port: 3000,
+    port: 8080,
   },
   test: {
     environment: 'jsdom',

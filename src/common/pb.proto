@@ -224,6 +224,10 @@ message PB {
           int32 user_id = 1;
         }
 
+        message AddBot {
+          string bot_type = 1;
+        }
+
         int32 number_of_game_setup_changes = 1;
         SitDown sit_down = 2;
         StandUp stand_up = 3;
@@ -232,6 +236,7 @@ message PB {
         ChangePlayerArrangementMode change_player_arrangement_mode = 6;
         SwapPositions swap_positions = 7;
         KickUser kick_user = 8;
+        AddBot add_bot = 9;
       }
 
       message GameAction {

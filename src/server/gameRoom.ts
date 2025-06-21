@@ -97,17 +97,17 @@ export class GameRoom extends Room {
           gameNumber: message.gameNumber,
           metadata: numberOfGameStatesPerPlayerAndWatcher.every((entry) => entry === 0)
             ? {
-                gameMode: this.gameSetup ? this.gameSetup.gameMode : this.game!.gameMode,
-                playerArrangementMode: this.gameSetup
-                  ? this.gameSetup.playerArrangementMode
-                  : this.game!.playerArrangementMode,
-                hostUserId: this.gameSetup ? this.gameSetup.hostUser.id : this.game!.hostUser.id,
-                userIds: (this.gameSetup ? this.gameSetup : this.game!).users.map(
-                  (user) => user?.id ?? 0,
-                ),
-                approvals: this.gameSetup ? this.gameSetup.approvals : dummyApprovals,
-                numberOfGameSetupChanges: this.gameSetup ? this.numberOfGameSetupChanges : 0,
-              }
+              gameMode: this.gameSetup ? this.gameSetup.gameMode : this.game!.gameMode,
+              playerArrangementMode: this.gameSetup
+                ? this.gameSetup.playerArrangementMode
+                : this.game!.playerArrangementMode,
+              hostUserId: this.gameSetup ? this.gameSetup.hostUser.id : this.game!.hostUser.id,
+              userIds: (this.gameSetup ? this.gameSetup : this.game!).users.map(
+                (user) => user?.id ?? 0,
+              ),
+              approvals: this.gameSetup ? this.gameSetup.approvals : dummyApprovals,
+              numberOfGameSetupChanges: this.gameSetup ? this.numberOfGameSetupChanges : 0,
+            }
             : undefined,
           userIdsInRoom: [...this.userToClients.keys()].map((user) => user.id),
         },
@@ -172,14 +172,31 @@ export class GameRoom extends Room {
           queueLobbyEvent = true;
         }
       }
+    } else if (message.addBot) {
+      if (client.user === this.gameSetup.hostUser) {
+        const botUser = this.gameSetup.addBot(message.addBot.botType);
+        if (botUser) {
+          this.userConnected(botUser);
+        }
+        queueLobbyEvent = true;
+      }
     }
 
     if (this.gameSetup.history.length > 0) {
       const gameSetupChange = this.gameSetup.history[0];
 
+
+      const userIdsAndUsernames = this.gameSetup.users
+        .filter(u => u !== null)
+        .map(u => PB_MessageToClient_Game_UserIdAndUsername.create({
+          userId: u.id,
+          username: u.name,
+        }));
+
       const messageToGameClients = PB_MessageToClient.toBinary(
         PB_MessageToClient.create({
           game: {
+            userIdsAndUsernames,
             gameSetupChange,
           },
         }),
@@ -338,11 +355,8 @@ export class GameRoom extends Room {
     }
 
     const messageToClientBinary = PB_MessageToClient.toBinary(messageToClient);
-
     for (const client of this.clients) {
-      if (client !== this.clientFromConnectMessage) {
-        client.sendMessage(messageToClientBinary);
-      }
+      client.sendMessage(messageToClientBinary);
     }
 
     const isKnownUser = this.lobbyRoom.lscKnownUsers.has(user);

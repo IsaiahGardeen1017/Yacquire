@@ -23,7 +23,7 @@ export function GameSetupUI(props: {
   onSwapPositions: ((position1: number, position2: number) => void) | undefined;
   onKickUser: ((userId: number) => void) | undefined;
   onApprove: (() => void) | undefined;
-  onAddBot?: (() => void);
+  onAddBot?: (botType: string) => void;
 }) {
   const numUsersInGame = createMemo(() =>
     props.users.reduce((count, user) => count + (user !== null ? 1 : 0), 0),
@@ -94,22 +94,24 @@ export function GameSetupUI(props: {
         </Show>
       </div>
 
-      <div style={{ 'margin-bottom': '1em' }}>
-        <label for="bot-type-select">Bot Type: </label>
-        <select
-          id="bot-type-select"
-          value={botType()}
-          onChange={e => setBotType(e.currentTarget.value)}
-          style={{ 'margin-right': '0.5em' }}
-        >
-          <option value="default">default</option>
-        </select>
-        <input
-          type="button"
-          value="Add Bot"
-          onClick={() => props.onAddBot && props.onAddBot()}
-        />
-      </div>
+      <Show when={props.onAddBot !== undefined && !gameIsFull()}>
+        <div style={{ 'margin-bottom': '1em' }}>
+          <label for="bot-type-select">Bot Type: </label>
+          <select
+            id="bot-type-select"
+            value={botType()}
+            onChange={e => setBotType(e.currentTarget.value)}
+            style={{ 'margin-right': '0.5em' }}
+          >
+            <option value="default">default</option>
+          </select>
+          <input
+            type="button"
+            value="Add Bot"
+            onClick={() => props.onAddBot && props.onAddBot(botType())}
+          />
+        </div>
+      </Show>
 
       <table>
         <tbody>
