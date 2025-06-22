@@ -1,10 +1,17 @@
 import { concatenateUint8Arrays } from "../../common/helpers.js";
+import { User } from "../../common/user.js";
 import { Client } from "../client.js";
+import { BotLogicHandler } from "./botLogicHandler.js";
 
 export class BotClient extends Client {
-    constructor(clientId: number) {
+
+    logicHandler: BotLogicHandler;
+
+    constructor(clientId: number, botType: string, botLogicHandler: BotLogicHandler) {
         super(clientId, () => {});
+        this.logicHandler = botLogicHandler;
     }
+
 
     // We Intercept messages to the browser and will send them to my bot
     sendMessage(message: Uint8Array) {

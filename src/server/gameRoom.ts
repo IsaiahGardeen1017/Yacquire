@@ -15,6 +15,8 @@ import {
   type PB_MessageToServer_Game_GameSetupAction,
 } from '../common/pb.js';
 import { type User } from '../common/user.js';
+import { BotClient } from './bots/botClient.js';
+import { BotLogicHandler } from './bots/botLogicHandler.js';
 import { type Client } from './client.js';
 import { type LobbyRoom } from './lobbyRoom.js';
 import { Room } from './room.js';
@@ -22,6 +24,7 @@ import { Room } from './room.js';
 export class GameRoom extends Room {
   gameSetup: GameSetup | null = null;
   game: Game | null = null;
+  private nextBotClientId = -1;
 
   private numberOfGameSetupChanges = 0;
 
@@ -176,7 +179,17 @@ export class GameRoom extends Room {
       if (client.user === this.gameSetup.hostUser) {
         const botUser = this.gameSetup.addBot(message.addBot.botType);
         if (botUser) {
+          const botClientId = this.nextBotClientId--;
+          const botType = message.addBot?.botType;
+          const botLogicHandler = new BotLogicHandler(botUser, this);
+          const botClient = new BotClient(botClientId, botType, botLogicHandler);
+          botClient.connectToRoom(this);
+          
           this.userConnected(botUser);
+
+          botClient.loggedIn(botUser);
+          this.clientConnected(botClient);
+          
         }
         queueLobbyEvent = true;
       }
