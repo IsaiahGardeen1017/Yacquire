@@ -11,11 +11,17 @@ import { type Client } from './client.js';
 import { GameRoom } from './gameRoom.js';
 import { type LobbyRoom } from './lobbyRoom.js';
 import { ReuseIdManager } from './reuseIdManager.js';
+import { BotGeneration, BotGenerator } from './server.js';
 
 export class GameRoomsManager {
   nextGameNumber = 1;
   nextGameDisplayNumber = new ReuseIdManager(60000);
   gameNumberToGameRoom = new Map<number, GameRoom>();
+  botGenerator: BotGenerator;
+
+  constructor(botGenerator: BotGenerator){
+    this.botGenerator = botGenerator;
+  }
 
   private lobbyRoom!: LobbyRoom;
   setLobbyRoom(lobbyRoom: LobbyRoom) {
@@ -30,7 +36,7 @@ export class GameRoomsManager {
   createGameRoom(host: Client, gameMode: PB_GameMode) {
     const gameNumber = this.nextGameNumber++;
     const gameDisplayNumber = this.nextGameDisplayNumber.getId();
-    const gameRoom = new GameRoom(this.lobbyRoom, gameNumber, gameDisplayNumber, host, gameMode);
+    const gameRoom = new GameRoom(this.lobbyRoom, gameNumber, gameDisplayNumber, host, gameMode, this.botGenerator);
 
     this.gameNumberToGameRoom.set(gameNumber, gameRoom);
 

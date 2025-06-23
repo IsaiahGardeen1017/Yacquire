@@ -20,6 +20,7 @@ import { BotLogicHandler } from './bots/botLogicHandler.js';
 import { type Client } from './client.js';
 import { type LobbyRoom } from './lobbyRoom.js';
 import { Room } from './room.js';
+import { BotGenerator } from './server.js';
 
 export class GameRoom extends Room {
   gameSetup: GameSetup | null = null;
@@ -42,6 +43,7 @@ export class GameRoom extends Room {
     public gameDisplayNumber: number,
     host: Client,
     gameMode: PB_GameMode,
+    private botGenerator: BotGenerator,
   ) {
     super();
 
@@ -177,19 +179,16 @@ export class GameRoom extends Room {
       }
     } else if (message.addBot) {
       if (client.user === this.gameSetup.hostUser) {
-        const botUser = this.gameSetup.addBot(message.addBot.botType);
+        const botGeneration = this.botGenerator(message.addBot?.botType)
+        const botUser = botGeneration.user;
         if (botUser) {
-          const botClientId = this.nextBotClientId--;
-          const botType = message.addBot?.botType;
-          const botLogicHandler = new BotLogicHandler(botUser, this);
-          const botClient = new BotClient(botClientId, botType, botLogicHandler);
-          botClient.connectToRoom(this);
+          this.userIdToUser.set(botUser.id, botUser);
           
-          this.userConnected(botUser);
-
+          this.gameSetup.addUser(botUser);
+          const botLogicHandler = botGeneration.botLogicHandler;
+          const botClient = botGeneration.client;
           botClient.loggedIn(botUser);
-          this.clientConnected(botClient);
-          
+          botClient.connectToRoom(this);
         }
         queueLobbyEvent = true;
       }

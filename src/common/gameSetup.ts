@@ -67,7 +67,8 @@ export class GameSetup {
     }
   }
 
-  addBot(botType: string): User | null {
+  //Not used, what does it even do?
+  addBot(botType: string) {
     // Find an empty position
     const emptyPosition = this.users.findIndex(user => user === null);
     if (emptyPosition === -1) {
@@ -101,9 +102,6 @@ export class GameSetup {
         },
       }),
     );
-
-    return botUser;
-
   }
 
   removeUser(user: User) {

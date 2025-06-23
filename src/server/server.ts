@@ -14,19 +14,32 @@ import {
     type PB_MessageToServer_LoginLogout_LoginWithToken,
 } from "../common/pb.js";
 import { User } from "../common/user.js";
+import { BotClient } from "./bots/botClient.js";
+import { BotLogicHandler } from "./bots/botLogicHandler.js";
 import { Client } from "./client.js";
 import { GameRoomsManager } from "./gameRoomsManager.js";
 import { LobbyRoom } from "./lobbyRoom.js";
 import { type ServerCommunication } from "./serverCommunication.js";
 import { type UserData, type UserDataProvider } from "./userDataProvider.js";
 
+
+export type BotGeneration = {
+    user: User,
+    client: Client,
+    botLogicHandler: BotLogicHandler
+}
+
+export type BotGenerator = (a: string) => BotGeneration
+
 export class Server {
     private initialMessage: Uint8Array;
+    gameRoomsManager: GameRoomsManager
 
     clientIdToClient = new Map<number, Client>();
 
     lobbyRoom = new LobbyRoom();
-    gameRoomsManager = new GameRoomsManager();
+
+    nextBotClientUserId: number;
 
     userIdToUser = new Map<number, User>(); // unique User objects for everybody who ever logged in. TODO: purge unused users sometimes.
 
@@ -36,6 +49,8 @@ export class Server {
         version: number,
         logTime: number,
     ) {
+        this.nextBotClientUserId = -1;
+        
         serverCommunication.setCallbacks(
             this.onConnect.bind(this),
             this.onDisconnect.bind(this),
@@ -49,10 +64,25 @@ export class Server {
             },
         });
 
+        this.gameRoomsManager =  new GameRoomsManager(this.botGenerator.bind(this));
+
         this.lobbyRoom.setGameRoomsManager(this.gameRoomsManager);
 
         this.gameRoomsManager.setLobbyRoom(this.lobbyRoom);
         this.gameRoomsManager.setLogTime(logTime);
+    }
+
+
+
+    public botGenerator(botType: string): BotGeneration {
+        const id = this.nextBotClientUserId--;
+        const botLogi = new BotLogicHandler(botType, this, id);
+        const botClient = new BotClient(id, botLogi);
+        return {
+            user: botLogi.user,
+            client: botClient,
+            botLogicHandler: botLogi,
+        }
     }
 
     private onConnect(clientId: number) {
@@ -93,7 +123,7 @@ export class Server {
     };
 
     private async onMessage(clientId: number, message: Uint8Array) {
-        this.logMessage(clientId, message);
+        //this.logMessage(clientId, message);
         const client = this.clientIdToClient.get(clientId)!;
 
         const messageToServer = PB_MessageToServer.fromBinary(message);
