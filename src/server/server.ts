@@ -17,23 +17,23 @@ import { User } from "../common/user.js";
 import { BotClient } from "./bots/botClient.js";
 import { BotLogicHandler } from "./bots/botLogicHandler.js";
 import { Client } from "./client.js";
+import { GameRoom } from "./gameRoom.js";
 import { GameRoomsManager } from "./gameRoomsManager.js";
 import { LobbyRoom } from "./lobbyRoom.js";
 import { type ServerCommunication } from "./serverCommunication.js";
 import { type UserData, type UserDataProvider } from "./userDataProvider.js";
 
-
 export type BotGeneration = {
-    user: User,
-    client: Client,
-    botLogicHandler: BotLogicHandler
-}
+    user: User;
+    client: Client;
+    botLogicHandler: BotLogicHandler;
+};
 
-export type BotGenerator = (a: string) => BotGeneration
+export type BotGenerator = (a: string, b: GameRoom) => BotGeneration;
 
 export class Server {
     private initialMessage: Uint8Array;
-    gameRoomsManager: GameRoomsManager
+    gameRoomsManager: GameRoomsManager;
 
     clientIdToClient = new Map<number, Client>();
 
@@ -50,7 +50,7 @@ export class Server {
         logTime: number,
     ) {
         this.nextBotClientUserId = -1;
-        
+
         serverCommunication.setCallbacks(
             this.onConnect.bind(this),
             this.onDisconnect.bind(this),
@@ -64,7 +64,9 @@ export class Server {
             },
         });
 
-        this.gameRoomsManager =  new GameRoomsManager(this.botGenerator.bind(this));
+        this.gameRoomsManager = new GameRoomsManager(
+            this.botGenerator.bind(this),
+        );
 
         this.lobbyRoom.setGameRoomsManager(this.gameRoomsManager);
 
@@ -72,21 +74,20 @@ export class Server {
         this.gameRoomsManager.setLogTime(logTime);
     }
 
-
-
-    public botGenerator(botType: string): BotGeneration {
+    public botGenerator(botType: string, gameRoom: GameRoom): BotGeneration {
         const id = this.nextBotClientUserId--;
-        const botLogi = new BotLogicHandler(botType, this, id);
+        const botLogi = new BotLogicHandler(botType, this, id, gameRoom);
         const botClient = new BotClient(id, botLogi);
+        this.clientIdToClient.set(id, botClient);
         return {
             user: botLogi.user,
             client: botClient,
             botLogicHandler: botLogi,
-        }
+        };
     }
 
     private onConnect(clientId: number) {
-        console.log('GRINGLECCKTING!!');
+        console.log("GRINGLECCKTING!!");
         const client = new Client(
             clientId,
             (message) =>
@@ -122,12 +123,20 @@ export class Server {
         console.log("".padEnd(25, "="));
     };
 
+    public sendMessage(clientId: number, message: PB_MessageToServer) {
+        this.onParsedMessage(clientId, message);
+    }
+
     private async onMessage(clientId: number, message: Uint8Array) {
-        //this.logMessage(clientId, message);
-        const client = this.clientIdToClient.get(clientId)!;
-
         const messageToServer = PB_MessageToServer.fromBinary(message);
+        this.onParsedMessage(clientId, messageToServer);
+    }
 
+    private async onParsedMessage(
+        clientId: number,
+        messageToServer: PB_MessageToServer,
+    ) {
+        const client = this.clientIdToClient.get(clientId)!;
         if (messageToServer.loginLogout) {
             await this.onMessage_LoginLogout(
                 client,
