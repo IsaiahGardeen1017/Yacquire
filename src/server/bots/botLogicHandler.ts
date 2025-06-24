@@ -11,15 +11,14 @@ export class BotLogicHandler {
     serverRef: Server;
     imp: Implementation;
     id: number;
-    gameRoom: GameRoom;
+
+    hasReadiedUp = false;
 
     constructor(
         botType: string,
         serverRef: Server,
         userclientId: number,
-        gameRoom: GameRoom,
     ) {
-        this.gameRoom = gameRoom;
         this.imp = createImplementationByBotType(botType);
         this.serverRef = serverRef;
         this.id = userclientId;
@@ -27,35 +26,30 @@ export class BotLogicHandler {
     }
 
     handleMessage(message: PB_MessageToClient) {
+        const botClient = this.serverRef.clientIdToClient.get(this.id);
+        if (!botClient) return;
+        const gameRoom = botClient?.room as GameRoom;
+        if (!gameRoom) return;
+
         if (message) {
             console.log("===");
         }
-        if (message?.game?.gameSetupChange?.userAdded) {
-            // We don't
-            console.log("ready up now?");
-        }
-        const alwaysFalse = false;
-        if (alwaysFalse) {
-            const approvals = message?.game?.connectResponse?.metadata
-                ?.approvals;
-            const myIndex = message?.game?.connectResponse?.metadata?.userIds
-                .indexOf(this.user.id);
-            console.log("APPROVING");
-            console.log(approvals);
-            console.log(myIndex);
-            if (approvals && myIndex !== undefined && !approvals[myIndex]) {
-                const numberOfGameSetupChanges =
-                    this.gameRoom?.numberOfGameSetupChanges ?? 0;
-                const approveMessage = {
-                    game: {
-                        gameSetupAction: {
-                            numberOfGameSetupChanges,
-                            approve: {},
-                        },
+        if (
+            message.game?.gameSetupChange?.userApprovedOfGameSetup &&
+            !this.hasReadiedUp
+        ) {
+            this.hasReadiedUp = true;
+            const numberOfGameSetupChanges =
+                gameRoom?.numberOfGameSetupChanges ?? 0;
+            const approveMessage = {
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        approve: {},
                     },
-                };
-                this.serverRef.sendMessage(this.id, approveMessage);
-            }
+                },
+            };
+            this.serverRef.sendMessage(this.id, approveMessage);
         }
     }
 }

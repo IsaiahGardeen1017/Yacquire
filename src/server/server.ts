@@ -76,7 +76,7 @@ export class Server {
 
     public botGenerator(botType: string, gameRoom: GameRoom): BotGeneration {
         const id = this.nextBotClientUserId--;
-        const botLogi = new BotLogicHandler(botType, this, id, gameRoom);
+        const botLogi = new BotLogicHandler(botType, this, id);
         const botClient = new BotClient(id, botLogi);
         this.clientIdToClient.set(id, botClient);
         return {
