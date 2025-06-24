@@ -142,6 +142,8 @@ export class GameSetup {
       return;
     }
 
+    console.log(`${user.name} is approving`);
+
     for (let position = 0; position < this.users.length; position++) {
       if (this.users[position] === user) {
         if (this.approvals[position] === false) {
@@ -157,6 +159,7 @@ export class GameSetup {
           const approvedByEverybody = this.approvals.indexOf(false) === -1;
           if (approvedByEverybody) {
             this.finalUsers = this.getFinalUsers();
+            console.log(this.finalUsers);
 
             gameSetupChange.userApprovedOfGameSetup!.approvedByEverybody = true;
 

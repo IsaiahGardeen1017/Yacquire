@@ -193,6 +193,12 @@ export function createGameManager(
     const playerId = myUser && gameSetup ? gameSetup.users.indexOf(myUser) : -1;
     const gamesIndex = gameSetup ? (playerId === -1 ? gameSetup.users.length : playerId) : -1;
 
+    console.log('Client myUser:', myUser);
+    console.log('Client gameSetup.users:', gameSetup?.users);
+    console.log('Client myPlayerId:', playerId);
+    console.log('Client myRequiredGameAction:', myRequiredGameAction());
+    console.log('Client messageType?:', message);
+
     if (message.gameStates.length > 0) {
       if (games.length === 0) {
         const numGames = gameSetup!.users.length + 1;

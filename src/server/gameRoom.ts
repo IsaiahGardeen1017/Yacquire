@@ -269,11 +269,11 @@ export class GameRoom extends Room {
                 );
             }
 
-            this.gameSetup?.clearHistory();
+            this.gameSetup.clearHistory();
             this.numberOfGameSetupChanges++;
         }
 
-        if (this.gameSetup?.finalUsers) {
+        if (this.gameSetup.finalUsers) {
             this.game = new Game(
                 this.gameSetup.gameMode,
                 this.gameSetup.playerArrangementMode,

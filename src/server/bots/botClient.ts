@@ -14,17 +14,15 @@ export class BotClient extends Client {
         this.logicHandler = botLogicHandler;
     }
 
-    sendMessage(message: Uint8Array) {
+    async sendMessage(message: Uint8Array) {
         const decodedMessage = PB_MessageToClient.fromBinary(message);
-        this.logicHandler.handleMessage(decodedMessage);
+        await this.logicHandler.handleMessage(decodedMessage);
     }
 
     endResponse() {
-        console.log("Ending Response");
         super.endResponse();
     }
     beginResponse() {
-        console.log("Begin Response");
         super.beginResponse();
     }
 }

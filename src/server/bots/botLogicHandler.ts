@@ -25,15 +25,14 @@ export class BotLogicHandler {
         this.user = new User(userclientId, this.imp.userName);
     }
 
-    handleMessage(message: PB_MessageToClient) {
+    async handleMessage(message: PB_MessageToClient) {
+        await setTimeout(() => {}, 200); //Delay for 20ms so that we act more like a user
+
         const botClient = this.serverRef.clientIdToClient.get(this.id);
         if (!botClient) return;
         const gameRoom = botClient?.room as GameRoom;
         if (!gameRoom) return;
 
-        if (message) {
-            console.log("===");
-        }
         if (
             message.game?.gameSetupChange?.userApprovedOfGameSetup &&
             !this.hasReadiedUp
@@ -51,5 +50,9 @@ export class BotLogicHandler {
             };
             this.serverRef.sendMessage(this.id, approveMessage);
         }
+
+        if(message){
+            console.log('Do some things I think');
+        }   
     }
 }
