@@ -77,6 +77,10 @@ export class GameRoom extends Room {
         );
     }
 
+    getSaneGamestateObject(): SaneGameState{
+
+    }
+
     getUsernameForUserId(userId: number) {
         return this.userIdToUser.get(userId) ?? "?";
     }

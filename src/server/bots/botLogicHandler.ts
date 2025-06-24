@@ -5,6 +5,8 @@ import { createImplementationByBotType } from "./implementationPicker.js";
 import { Server } from "../server.js";
 import { PB_MessageToServer } from "../../common/pb.js";
 import { GameRoom } from "../gameRoom.js";
+import { NextGameAction } from "../../client/components/NextGameAction.jsx";
+import { ActionPlayTile } from "../../common/gameActions/playTile.js";
 
 export class BotLogicHandler {
     user: User;
@@ -49,10 +51,21 @@ export class BotLogicHandler {
                 },
             };
             this.serverRef.sendMessage(this.id, approveMessage);
-        }
-
-        if(message){
-            console.log('Do some things I think');
+        }else if(message){
+            const gameState = gameRoom.game?.getCurrentGameState();
+            const nextAction = gameState?.nextGameAction;
+            const myPlayerIndex = gameRoom?.game?.users.findIndex(u => u.id === this.id);
+            if(gameState && nextAction?.playerId && nextAction.playerId === myPlayerIndex){
+                console.log(nextAction);
+                if(nextAction instanceof ActionPlayTile){
+                        const naGameState = nextAction.game.getCurrentGameState
+                        const tileRack = gameState.tileRacks[this.id];
+                        const tileRackIndex = gameState.tileRackTypes[this.id];
+                    }else{
+                        console.log('here');
+                    }
+                    console.log('actioning');
+            }
         }   
     }
 }
