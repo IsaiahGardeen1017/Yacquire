@@ -51,21 +51,28 @@ export class BotLogicHandler {
                 },
             };
             this.serverRef.sendMessage(this.id, approveMessage);
-        }else if(message){
+        } else if (message) {
             const gameState = gameRoom.game?.getCurrentGameState();
             const nextAction = gameState?.nextGameAction;
-            const myPlayerIndex = gameRoom?.game?.users.findIndex(u => u.id === this.id);
-            if(gameState && nextAction?.playerId && nextAction.playerId === myPlayerIndex){
+            const myPlayerIndex = gameRoom?.game?.users.findIndex((u) =>
+                u.id === this.id
+            );
+            if (
+                gameState && nextAction?.playerId != null &&
+                nextAction.playerId === myPlayerIndex
+            ) {
                 console.log(nextAction);
-                if(nextAction instanceof ActionPlayTile){
-                        const naGameState = nextAction.game.getCurrentGameState
-                        const tileRack = gameState.tileRacks[this.id];
-                        const tileRackIndex = gameState.tileRackTypes[this.id];
-                    }else{
-                        console.log('here');
-                    }
-                    console.log('actioning');
+                if (nextAction instanceof ActionPlayTile) {
+                    const naGameState = nextAction.game
+                        .getSaneGamestateObject(myPlayerIndex);
+                    const tileRack = nextAction.game.tileRacks[myPlayerIndex];
+                    const tileRackIndex =
+                        nextAction.game.tileRackTypes[myPlayerIndex];
+                } else {
+                    console.log("here");
+                }
+                console.log("actioning");
             }
-        }   
+        }
     }
 }

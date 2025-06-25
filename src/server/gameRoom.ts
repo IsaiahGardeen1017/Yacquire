@@ -14,6 +14,7 @@ import {
     type PB_MessageToServer_Game_GameSetupAction,
     PB_PlayerArrangementMode,
 } from "../common/pb.js";
+import { SaneGameState } from "../common/SaneGameState.js";
 import { type User } from "../common/user.js";
 import { BotClient } from "./bots/botClient.js";
 import { BotLogicHandler } from "./bots/botLogicHandler.js";
@@ -75,10 +76,6 @@ export class GameRoom extends Room {
                 },
             }),
         );
-    }
-
-    getSaneGamestateObject(): SaneGameState{
-
     }
 
     getUsernameForUserId(userId: number) {

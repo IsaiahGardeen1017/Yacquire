@@ -6,37 +6,38 @@ import typescript from 'typescript-eslint';
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
-  js.configs.recommended,
-  ...typescript.configs.recommended,
-  {
-    files: ['**/*.{js,ts,tsx}'],
-  },
-  {
-    ...solid,
-  },
-  {
-    rules: {
-      '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
+    js.configs.recommended,
+    ...typescript.configs.recommended,
+    {
+        files: ['**/*.{js,ts,tsx}'],
     },
-  },
-  {
-    languageOptions: {
-      globals: {
-        ...globals.browser,
-      },
+    {
+        ...solid,
     },
-  },
-  {
-    ignores: [
-      '.env',
-      '.env.*',
-      '!.env.example',
-      '*.ignore.*',
-      'build',
-      'node_modules',
-      'package',
-      'src/common/pb*.ts',
-    ],
-  },
-  prettier,
+    {
+        rules: {
+            '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
+            'max-len': ['warn', { code: 250 }],
+        },
+    },
+    {
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+            },
+        },
+    },
+    {
+        ignores: [
+            '.env',
+            '.env.*',
+            '!.env.example',
+            '*.ignore.*',
+            'build',
+            'node_modules',
+            'package',
+            'src/common/pb*.ts',
+        ],
+    },
+    prettier,
 ];
