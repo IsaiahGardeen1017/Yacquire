@@ -12,6 +12,7 @@
         "protobuf-l": "/usr/bin/protoc --ts_out src/common --proto_path src/common src/common/*.proto",
         "protobuf:format": "clang-format -i src/common/*.proto",
         "buildServer": "tsc",
+        "buildOnServer": "tsc",
         "server": "node build/server/src/server/main.js",
         "watch": "tsc -w"
     },
