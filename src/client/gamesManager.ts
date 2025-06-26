@@ -1,514 +1,553 @@
-import { batch, createSignal } from 'solid-js';
-import { Game } from '../common/game.js';
-import { type ActionBase } from '../common/gameActions/base.js';
-import { gameFromProtocolBuffer } from '../common/gameSerialization.js';
-import { createGameSetupLite, type GameSetupLite } from '../common/gameSetupLite.js';
-import { type GameState } from '../common/gameState.js';
+import { batch, createSignal } from "solid-js";
+import { Game } from "../common/game.js";
+import { type ActionBase } from "../common/gameActions/base.js";
+import { gameFromProtocolBuffer } from "../common/gameSerialization.js";
 import {
-  PB_GameAction,
-  type PB_GameBoardType,
-  PB_GameMode,
-  type PB_MessageToClient_Game,
-  PB_MessageToServer,
-  PB_PlayerArrangementMode,
-} from '../common/pb.js';
-import { User } from '../common/user.js';
+    createGameSetupLite,
+    type GameSetupLite,
+} from "../common/gameSetupLite.js";
+import { type GameState } from "../common/gameState.js";
+import {
+    PB_GameAction,
+    type PB_GameBoardType,
+    PB_GameMode,
+    type PB_MessageToClient_Game,
+    PB_MessageToServer,
+    PB_PlayerArrangementMode,
+} from "../common/pb.js";
+import { User } from "../common/user.js";
 
 export type GamesManager = ReturnType<typeof createGamesManager>;
 
 export function createGamesManager(
-  sendMessage: (message: Uint8Array) => void,
-  myUserAccessor: () => User | null,
-  userIdToUser: Map<number, User>,
+    sendMessage: (message: Uint8Array) => void,
+    myUserAccessor: () => User | null,
+    userIdToUser: Map<number, User>,
 ) {
-  const gameIdToGameManager = new Map<string, GameManager>();
+    const gameIdToGameManager = new Map<string, GameManager>();
 
-  let lastRequestedGameId = '';
-  let lastReceivedGameId = '';
+    let lastRequestedGameId = "";
+    let lastReceivedGameId = "";
 
-  function connect(logTime: number, gameNumber: number) {
-    lastRequestedGameId = `${logTime}-${gameNumber}`;
+    function connect(logTime: number, gameNumber: number) {
+        lastRequestedGameId = `${logTime}-${gameNumber}`;
 
-    let gameManager = gameIdToGameManager.get(lastRequestedGameId);
-    if (gameManager === undefined) {
-      gameManager = createGameManager(
-        sendMessage,
-        myUserAccessor,
-        userIdToUser,
-        logTime,
-        gameNumber,
-      );
-      gameIdToGameManager.set(lastRequestedGameId, gameManager);
+        let gameManager = gameIdToGameManager.get(lastRequestedGameId);
+        if (gameManager === undefined) {
+            gameManager = createGameManager(
+                sendMessage,
+                myUserAccessor,
+                userIdToUser,
+                logTime,
+                gameNumber,
+            );
+            gameIdToGameManager.set(lastRequestedGameId, gameManager);
+        }
+
+        gameManager.connect();
+
+        return gameManager;
     }
 
-    gameManager.connect();
+    function getConnectMessage() {
+        const gameManager = gameIdToGameManager.get(lastRequestedGameId);
+        if (gameManager === undefined) {
+            throw new Error("last requested game manager does not exist");
+        }
 
-    return gameManager;
-  }
-
-  function getConnectMessage() {
-    const gameManager = gameIdToGameManager.get(lastRequestedGameId);
-    if (gameManager === undefined) {
-      throw new Error('last requested game manager does not exist');
+        return gameManager.getConnectMessage();
     }
 
-    return gameManager.getConnectMessage();
-  }
+    function onMessage(message: PB_MessageToClient_Game) {
+        if (message.connectResponse) {
+            const connectResponse = message.connectResponse;
+            lastReceivedGameId =
+                `${connectResponse.logTime}-${connectResponse.gameNumber}`;
+        }
 
-  function onMessage(message: PB_MessageToClient_Game) {
-    if (message.connectResponse) {
-      const connectResponse = message.connectResponse;
-      lastReceivedGameId = `${connectResponse.logTime}-${connectResponse.gameNumber}`;
+        const gameManager = gameIdToGameManager.get(lastReceivedGameId);
+        if (gameManager === undefined) {
+            throw new Error("last received game manager does not exist");
+        }
+
+        gameManager.onMessage(message);
     }
 
-    const gameManager = gameIdToGameManager.get(lastReceivedGameId);
-    if (gameManager === undefined) {
-      throw new Error('last received game manager does not exist');
-    }
-
-    gameManager.onMessage(message);
-  }
-
-  return {
-    connect,
-    getConnectMessage,
-    onMessage,
-  };
+    return {
+        connect,
+        getConnectMessage,
+        onMessage,
+    };
 }
 
 export type GameManager = ReturnType<typeof createGameManager>;
 
 export function createGameManager(
-  sendMessage: (message: Uint8Array) => void,
-  myUserAccessor: () => User | null,
-  userIdToUser: Map<number, User>,
-  logTime: number,
-  gameNumber: number,
+    sendMessage: (message: Uint8Array) => void,
+    myUserAccessor: () => User | null,
+    userIdToUser: Map<number, User>,
+    logTime: number,
+    gameNumber: number,
 ) {
-  let gameSetup: GameSetupLite | null = null;
-  const games: (Game | null)[] = [];
-  let gameReview: Game | null = null;
+    let gameSetup: GameSetupLite | null = null;
+    const games: (Game | null)[] = [];
+    let gameReview: Game | null = null;
 
-  let numberOfUserIdAndUsernameMessages = 0;
+    let numberOfUserIdAndUsernameMessages = 0;
 
-  const [status, setStatus] = createSignal(GameManagerStatus.Connecting);
+    const [status, setStatus] = createSignal(GameManagerStatus.Connecting);
 
-  const [gameMode, setGameMode] = createSignal(PB_GameMode.SINGLES_1);
-  const [playerArrangementMode, setPlayerArrangementMode] = createSignal(
-    PB_PlayerArrangementMode.VERSION_1,
-  );
-  const [users, setUsers] = createSignal(dummyUsers);
-  const [usersWithoutNulls, setUsersWithoutNulls] = createSignal(dummyUsersWithoutNulls);
-  const [approvals, setApprovals] = createSignal(dummyApprovals);
-  const [hostUser, setHostUser] = createSignal(dummyUser);
-  let numberOfGameSetupChanges = 0;
-  const internalUsersInRoom = new Set<User>();
-  const [usersInRoom, setUsersInRoom] = createSignal(internalUsersInRoom, { equals: false });
-
-  const [gameStateHistory, setGameStateHistory] = createSignal(dummyGameStateHistory);
-
-  const [myPlayerId, setMyPlayerId] = createSignal(-1);
-  const [myRequiredGameAction, setMyRequiredGameAction] = createSignal<ActionBase | null>(null);
-
-  function connect() {
-    setStatus(GameManagerStatus.Connecting);
-
-    sendMessage(getConnectMessage());
-  }
-
-  function getConnectMessage() {
-    return PB_MessageToServer.toBinary({
-      game: {
-        connect: {
-          logTime,
-          gameNumber,
-          numberOfUserIdAndUsernameMessages,
-          numberOfGameStatesPerPlayerAndWatcher: games.map((game) =>
-            game ? game.gameStateHistory.length : 0,
-          ),
-        },
-      },
+    const [gameMode, setGameMode] = createSignal(PB_GameMode.SINGLES_1);
+    const [playerArrangementMode, setPlayerArrangementMode] = createSignal(
+        PB_PlayerArrangementMode.VERSION_1,
+    );
+    const [users, setUsers] = createSignal(dummyUsers);
+    const [usersWithoutNulls, setUsersWithoutNulls] = createSignal(
+        dummyUsersWithoutNulls,
+    );
+    const [approvals, setApprovals] = createSignal(dummyApprovals);
+    const [hostUser, setHostUser] = createSignal(dummyUser);
+    let numberOfGameSetupChanges = 0;
+    const internalUsersInRoom = new Set<User>();
+    const [usersInRoom, setUsersInRoom] = createSignal(internalUsersInRoom, {
+        equals: false,
     });
-  }
 
-  function onMessage(message: PB_MessageToClient_Game) {
-    let updatedUsersInRoom = false;
+    const [gameStateHistory, setGameStateHistory] = createSignal(
+        dummyGameStateHistory,
+    );
 
-    for (let i = 0; i < message.userIdsAndUsernames.length; i++) {
-      const userIdAndUsername = message.userIdsAndUsernames[i];
+    const [myPlayerId, setMyPlayerId] = createSignal(-1);
+    const [myRequiredGameAction, setMyRequiredGameAction] = createSignal<
+        ActionBase | null
+    >(null);
 
-      if (!userIdToUser.has(userIdAndUsername.userId)) {
-        userIdToUser.set(
-          userIdAndUsername.userId,
-          new User(userIdAndUsername.userId, userIdAndUsername.username),
-        );
-      }
+    function connect() {
+        setStatus(GameManagerStatus.Connecting);
+
+        sendMessage(getConnectMessage());
     }
 
-    numberOfUserIdAndUsernameMessages += message.userIdsAndUsernames.length;
-
-    if (message.connectResponse) {
-      const connectResponse = message.connectResponse;
-
-      if (connectResponse.metadata) {
-        const metadata = connectResponse.metadata;
-
-        gameSetup = createGameSetupLite(
-          metadata.gameMode,
-          metadata.playerArrangementMode,
-          userIdToUser.get(metadata.hostUserId)!,
-          metadata.userIds.map((userId) => (userId === 0 ? null : userIdToUser.get(userId)!)),
-          metadata.approvals,
-          userIdToUser,
-        );
-
-        numberOfGameSetupChanges = metadata.numberOfGameSetupChanges;
-      } else if (connectResponse.gameReview) {
-        gameReview = gameFromProtocolBuffer(connectResponse.gameReview);
-      }
-
-      internalUsersInRoom.clear();
-      const userIdsInRoom = connectResponse.userIdsInRoom;
-      for (let i = 0; i < userIdsInRoom.length; i++) {
-        internalUsersInRoom.add(userIdToUser.get(userIdsInRoom[i])!);
-        updatedUsersInRoom = true;
-      }
+    function getConnectMessage() {
+        return PB_MessageToServer.toBinary({
+            game: {
+                connect: {
+                    logTime,
+                    gameNumber,
+                    numberOfUserIdAndUsernameMessages,
+                    numberOfGameStatesPerPlayerAndWatcher: games.map((game) =>
+                        game ? game.gameStateHistory.length : 0
+                    ),
+                },
+            },
+        });
     }
 
-    if (message.userIdWhoEnteredRoom) {
-      internalUsersInRoom.add(userIdToUser.get(message.userIdWhoEnteredRoom)!);
-      updatedUsersInRoom = true;
-    }
-    if (message.userIdWhoExitedRoom) {
-      internalUsersInRoom.delete(userIdToUser.get(message.userIdWhoExitedRoom)!);
-      updatedUsersInRoom = true;
-    }
+    function onMessage(message: PB_MessageToClient_Game) {
+        let updatedUsersInRoom = false;
 
-    if (message.gameSetupChange) {
-      gameSetup!.processChange(message.gameSetupChange);
-      numberOfGameSetupChanges++;
-    }
+        for (let i = 0; i < message.userIdsAndUsernames.length; i++) {
+            const userIdAndUsername = message.userIdsAndUsernames[i];
 
-    const myUser = myUserAccessor();
-    const playerId = myUser && gameSetup ? gameSetup.users.indexOf(myUser) : -1;
-    const gamesIndex = gameSetup ? (playerId === -1 ? gameSetup.users.length : playerId) : -1;
-
-    console.log('Client myUser:', myUser);
-    console.log('Client gameSetup.users:', gameSetup?.users);
-    console.log('Client myPlayerId:', playerId);
-    console.log('Client myRequiredGameAction:', myRequiredGameAction());
-    console.log('Client messageType?:', message);
-
-    if (message.gameStates.length > 0) {
-      if (games.length === 0) {
-        const numGames = gameSetup!.users.length + 1;
-        for (let i = 0; i < numGames; i++) {
-          games.push(null);
+            if (!userIdToUser.has(userIdAndUsername.userId)) {
+                userIdToUser.set(
+                    userIdAndUsername.userId,
+                    new User(
+                        userIdAndUsername.userId,
+                        userIdAndUsername.username,
+                    ),
+                );
+            }
         }
-      }
 
-      if (games[gamesIndex] === null) {
-        games[gamesIndex] = new Game(
-          gameSetup!.gameMode,
-          gameSetup!.playerArrangementMode,
-          [],
-          // @ts-expect-error gameSetup's users has no nulls when starting a game
-          gameSetup!.finalUsers ?? gameSetup!.users,
-          gameSetup!.hostUser,
-          myUser ?? dummyUser,
-        );
-      }
+        numberOfUserIdAndUsernameMessages += message.userIdsAndUsernames.length;
 
-      const game = games[gamesIndex];
+        if (message.connectResponse) {
+            const connectResponse = message.connectResponse;
 
-      for (let i = 0; i < message.gameStates.length; i++) {
-        game.processGameState(message.gameStates[i]);
-      }
+            if (connectResponse.metadata) {
+                const metadata = connectResponse.metadata;
+
+                gameSetup = createGameSetupLite(
+                    metadata.gameMode,
+                    metadata.playerArrangementMode,
+                    userIdToUser.get(metadata.hostUserId)!,
+                    metadata.userIds.map((
+                        userId,
+                    ) => (userId === 0 ? null : userIdToUser.get(userId)!)),
+                    metadata.approvals,
+                    userIdToUser,
+                );
+
+                numberOfGameSetupChanges = metadata.numberOfGameSetupChanges;
+            } else if (connectResponse.gameReview) {
+                gameReview = gameFromProtocolBuffer(connectResponse.gameReview);
+            }
+
+            internalUsersInRoom.clear();
+            const userIdsInRoom = connectResponse.userIdsInRoom;
+            for (let i = 0; i < userIdsInRoom.length; i++) {
+                internalUsersInRoom.add(userIdToUser.get(userIdsInRoom[i])!);
+                updatedUsersInRoom = true;
+            }
+        }
+
+        if (message.userIdWhoEnteredRoom) {
+            internalUsersInRoom.add(
+                userIdToUser.get(message.userIdWhoEnteredRoom)!,
+            );
+            updatedUsersInRoom = true;
+        }
+        if (message.userIdWhoExitedRoom) {
+            internalUsersInRoom.delete(
+                userIdToUser.get(message.userIdWhoExitedRoom)!,
+            );
+            updatedUsersInRoom = true;
+        }
+
+        if (message.gameSetupChange) {
+            gameSetup!.processChange(message.gameSetupChange);
+            numberOfGameSetupChanges++;
+        }
+
+        const myUser = myUserAccessor();
+        const playerId = myUser && gameSetup
+            ? gameSetup.users.indexOf(myUser)
+            : myUser && games.length > 0
+            ? games[0]?.users.indexOf(myUser) ?? -1
+            : -1;
+        const gamesIndex = gameSetup
+            ? (playerId === -1 ? gameSetup.users.length : playerId)
+            : games.length > 0
+            ? (playerId === -1 ? games[0]!.users.length : playerId)
+            : -1;
+
+        if (message.gameStates.length > 0) {
+            if (games.length === 0) {
+                const numGames = gameSetup!.users.length + 1;
+                for (let i = 0; i < numGames; i++) {
+                    games.push(null);
+                }
+            }
+
+            if (games[gamesIndex] === null) {
+                games[gamesIndex] = new Game(
+                    gameSetup!.gameMode,
+                    gameSetup!.playerArrangementMode,
+                    [],
+                    // @ts-expect-error gameSetup's users has no nulls when starting a game
+                    gameSetup!.finalUsers ?? gameSetup!.users,
+                    gameSetup!.hostUser,
+                    myUser ?? dummyUser,
+                );
+            }
+
+            const game = games[gamesIndex];
+
+            for (let i = 0; i < message.gameStates.length; i++) {
+                game.processGameState(message.gameStates[i]);
+            }
+        }
+
+        batch(() => {
+            if (gameReview) {
+                setStatus(GameManagerStatus.Review);
+                setCommonGameSignals(gameReview);
+            } else if (games.length > 0) {
+                const game = games[gamesIndex]!;
+
+                setStatus(GameManagerStatus.Game);
+                setCommonGameSignals(game);
+
+                setMyPlayerId(playerId);
+
+                const nextGameAction =
+                    game.gameStateHistory[game.gameStateHistory.length - 1]
+                        .nextGameAction;
+                setMyRequiredGameAction(
+                    nextGameAction.playerId === playerId
+                        ? nextGameAction
+                        : null,
+                );
+            } else if (gameSetup) {
+                setStatus(GameManagerStatus.SettingUp);
+                setGameMode(gameSetup.gameMode);
+                setPlayerArrangementMode(gameSetup.playerArrangementMode);
+                setUsers(gameSetup.users);
+                setApprovals(gameSetup.approvals);
+                setHostUser(gameSetup.hostUser);
+            } else {
+                setStatus(GameManagerStatus.NotFound);
+            }
+
+            if (updatedUsersInRoom) {
+                setUsersInRoom(internalUsersInRoom);
+            }
+        });
     }
 
-    batch(() => {
-      if (gameReview) {
-        setStatus(GameManagerStatus.Review);
-        setCommonGameSignals(gameReview);
-      } else if (games.length > 0) {
-        const game = games[gamesIndex]!;
+    function setCommonGameSignals(game: Game) {
+        setGameMode(game.gameMode);
+        setPlayerArrangementMode(game.playerArrangementMode);
+        setUsers(game.users);
+        setUsersWithoutNulls(game.users);
+        setHostUser(game.hostUser);
 
-        setStatus(GameManagerStatus.Game);
-        setCommonGameSignals(game);
+        setGameStateHistory(game.gameStateHistory);
+    }
 
-        setMyPlayerId(playerId);
+    function sitDown() {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        sitDown: {},
+                    },
+                },
+            }),
+        );
+    }
 
-        const nextGameAction =
-          game.gameStateHistory[game.gameStateHistory.length - 1].nextGameAction;
-        setMyRequiredGameAction(nextGameAction.playerId === playerId ? nextGameAction : null);
-      } else if (gameSetup) {
-        setStatus(GameManagerStatus.SettingUp);
-        setGameMode(gameSetup.gameMode);
-        setPlayerArrangementMode(gameSetup.playerArrangementMode);
-        setUsers(gameSetup.users);
-        setApprovals(gameSetup.approvals);
-        setHostUser(gameSetup.hostUser);
-      } else {
-        setStatus(GameManagerStatus.NotFound);
-      }
+    function standUp() {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        standUp: {},
+                    },
+                },
+            }),
+        );
+    }
 
-      if (updatedUsersInRoom) {
-        setUsersInRoom(internalUsersInRoom);
-      }
-    });
-  }
+    function approve() {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        approve: {},
+                    },
+                },
+            }),
+        );
+    }
 
-  function setCommonGameSignals(game: Game) {
-    setGameMode(game.gameMode);
-    setPlayerArrangementMode(game.playerArrangementMode);
-    setUsers(game.users);
-    setUsersWithoutNulls(game.users);
-    setHostUser(game.hostUser);
+    function changeGameMode(gameMode: PB_GameMode) {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        changeGameMode: {
+                            gameMode,
+                        },
+                    },
+                },
+            }),
+        );
+    }
 
-    setGameStateHistory(game.gameStateHistory);
-  }
+    function changePlayerArrangementMode(
+        playerArrangementMode: PB_PlayerArrangementMode,
+    ) {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        changePlayerArrangementMode: {
+                            playerArrangementMode,
+                        },
+                    },
+                },
+            }),
+        );
+    }
 
-  function sitDown() {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            sitDown: {},
-          },
+    function swapPositions(position1: number, position2: number) {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        swapPositions: {
+                            position1,
+                            position2,
+                        },
+                    },
+                },
+            }),
+        );
+    }
+
+    function kickUser(userId: number) {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        kickUser: {
+                            userId,
+                        },
+                    },
+                },
+            }),
+        );
+    }
+
+    function addBot(botType: string) {
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameSetupAction: {
+                        numberOfGameSetupChanges,
+                        addBot: {
+                            botType,
+                        },
+                    },
+                },
+            }),
+        );
+    }
+
+    function sendGameActionMessage(gameAction: PB_GameAction) {
+        const myUser = myUserAccessor();
+        const playerId = myUser && gameSetup
+            ? gameSetup.users.indexOf(myUser)
+            : myUser && games.length > 0
+            ? games[0]?.users.indexOf(myUser) ?? -1
+            : -1;
+        const gamesIndex = gameSetup
+            ? (playerId === -1 ? gameSetup.users.length : playerId)
+            : games.length > 0
+            ? (playerId === -1 ? games[0]!.users.length : playerId)
+            : -1;
+
+        sendMessage(
+            PB_MessageToServer.toBinary({
+                game: {
+                    gameAction: {
+                        numberOfGameStates:
+                            games[gamesIndex]!.gameStateHistory.length,
+                        gameAction,
+                    },
+                },
+            }),
+        );
+    }
+
+    function playTile(tile: number) {
+        sendGameActionMessage(
+            PB_GameAction.create({
+                playTile: {
+                    tile,
+                },
+            }),
+        );
+    }
+
+    function selectNewChain(chain: PB_GameBoardType) {
+        sendGameActionMessage(
+            PB_GameAction.create({
+                selectNewChain: {
+                    chain,
+                },
+            }),
+        );
+    }
+
+    function selectMergerSurvivor(chain: PB_GameBoardType) {
+        sendGameActionMessage(
+            PB_GameAction.create({
+                selectMergerSurvivor: {
+                    chain,
+                },
+            }),
+        );
+    }
+
+    function selectChainToDisposeOfNext(chain: PB_GameBoardType) {
+        sendGameActionMessage(
+            PB_GameAction.create({
+                selectChainToDisposeOfNext: {
+                    chain,
+                },
+            }),
+        );
+    }
+
+    function disposeOfShares(tradeAmount: number, sellAmount: number) {
+        sendGameActionMessage(
+            PB_GameAction.create({
+                disposeOfShares: {
+                    tradeAmount,
+                    sellAmount,
+                },
+            }),
+        );
+    }
+
+    function purchaseShares(chains: PB_GameBoardType[], endGame: boolean) {
+        sendGameActionMessage(
+            PB_GameAction.create({
+                purchaseShares: {
+                    chains,
+                    endGame,
+                },
+            }),
+        );
+    }
+
+    return {
+        connect,
+        getConnectMessage,
+        onMessage,
+        gameSetupActions: {
+            sitDown,
+            standUp,
+            approve,
+            changeGameMode,
+            changePlayerArrangementMode,
+            swapPositions,
+            kickUser,
+            addBot,
         },
-      }),
-    );
-  }
-
-  function standUp() {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            standUp: {},
-          },
+        gameActions: {
+            playTile,
+            selectNewChain,
+            selectMergerSurvivor,
+            selectChainToDisposeOfNext,
+            disposeOfShares,
+            purchaseShares,
         },
-      }),
-    );
-  }
-
-  function approve() {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            approve: {},
-          },
+        signals: {
+            status,
+            gameMode,
+            playerArrangementMode,
+            users,
+            usersWithoutNulls,
+            approvals,
+            hostUser,
+            usersInRoom,
+            gameStateHistory,
+            myPlayerId,
+            myRequiredGameAction,
         },
-      }),
-    );
-  }
-
-  function changeGameMode(gameMode: PB_GameMode) {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            changeGameMode: {
-              gameMode,
-            },
-          },
-        },
-      }),
-    );
-  }
-
-  function changePlayerArrangementMode(playerArrangementMode: PB_PlayerArrangementMode) {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            changePlayerArrangementMode: {
-              playerArrangementMode,
-            },
-          },
-        },
-      }),
-    );
-  }
-
-  function swapPositions(position1: number, position2: number) {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            swapPositions: {
-              position1,
-              position2,
-            },
-          },
-        },
-      }),
-    );
-  }
-
-  function kickUser(userId: number) {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            kickUser: {
-              userId,
-            },
-          },
-        },
-      }),
-    );
-  }
-
-  function addBot(botType: string) {
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameSetupAction: {
-            numberOfGameSetupChanges,
-            addBot: {
-              botType,
-            },
-          },
-        },
-      }),
-    );
-  }
-
-  function sendGameActionMessage(gameAction: PB_GameAction) {
-    const myUser = myUserAccessor();
-    const playerId = myUser && gameSetup ? gameSetup.users.indexOf(myUser) : -1;
-    const gamesIndex = gameSetup ? (playerId === -1 ? gameSetup.users.length : playerId) : -1;
-
-    sendMessage(
-      PB_MessageToServer.toBinary({
-        game: {
-          gameAction: {
-            numberOfGameStates: games[gamesIndex]!.gameStateHistory.length,
-            gameAction,
-          },
-        },
-      }),
-    );
-  }
-
-  function playTile(tile: number) {
-    sendGameActionMessage(
-      PB_GameAction.create({
-        playTile: {
-          tile,
-        },
-      }),
-    );
-  }
-
-  function selectNewChain(chain: PB_GameBoardType) {
-    sendGameActionMessage(
-      PB_GameAction.create({
-        selectNewChain: {
-          chain,
-        },
-      }),
-    );
-  }
-
-  function selectMergerSurvivor(chain: PB_GameBoardType) {
-    sendGameActionMessage(
-      PB_GameAction.create({
-        selectMergerSurvivor: {
-          chain,
-        },
-      }),
-    );
-  }
-
-  function selectChainToDisposeOfNext(chain: PB_GameBoardType) {
-    sendGameActionMessage(
-      PB_GameAction.create({
-        selectChainToDisposeOfNext: {
-          chain,
-        },
-      }),
-    );
-  }
-
-  function disposeOfShares(tradeAmount: number, sellAmount: number) {
-    sendGameActionMessage(
-      PB_GameAction.create({
-        disposeOfShares: {
-          tradeAmount,
-          sellAmount,
-        },
-      }),
-    );
-  }
-
-  function purchaseShares(chains: PB_GameBoardType[], endGame: boolean) {
-    sendGameActionMessage(
-      PB_GameAction.create({
-        purchaseShares: {
-          chains,
-          endGame,
-        },
-      }),
-    );
-  }
-
-  return {
-    connect,
-    getConnectMessage,
-    onMessage,
-    gameSetupActions: {
-      sitDown,
-      standUp,
-      approve,
-      changeGameMode,
-      changePlayerArrangementMode,
-      swapPositions,
-      kickUser,
-      addBot,
-    },
-    gameActions: {
-      playTile,
-      selectNewChain,
-      selectMergerSurvivor,
-      selectChainToDisposeOfNext,
-      disposeOfShares,
-      purchaseShares,
-    },
-    signals: {
-      status,
-      gameMode,
-      playerArrangementMode,
-      users,
-      usersWithoutNulls,
-      approvals,
-      hostUser,
-      usersInRoom,
-      gameStateHistory,
-      myPlayerId,
-      myRequiredGameAction,
-    },
-  };
+    };
 }
 
 export const enum GameManagerStatus {
-  Connecting,
-  NotFound,
-  SettingUp,
-  Game,
-  Review,
+    Connecting,
+    NotFound,
+    SettingUp,
+    Game,
+    Review,
 }
 
-const dummyUser = new User(-1, '?');
+const dummyUser = new User(-1, "?");
 const dummyUsers: (User | null)[] = [];
 const dummyUsersWithoutNulls: User[] = [];
 const dummyApprovals: boolean[] = [];

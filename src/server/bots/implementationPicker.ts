@@ -1,5 +1,5 @@
-import { TestImplementation } from "./implementations/tester.js";
+import { RandomImplementation } from "./implementations/RandomImplementation.js";
 
 export function createImplementationByBotType(botType: string) {
-    return new TestImplementation();
+    return new RandomImplementation();
 }

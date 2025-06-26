@@ -30,7 +30,7 @@ import {
     type PB_GameState_RevealedTileRackTile,
     type PB_PlayerArrangementMode,
 } from "./pb.js";
-import { SaneGameState, Tile } from "./SaneGameState.js";
+import { SaneGameState, Tile, tileNumToTileIndexer } from "./SaneGameState.js";
 import { type User } from "./user.js";
 
 export class Game {
@@ -134,8 +134,56 @@ export class Game {
         const myTiles: Tile[] = this.tileRacks[playerIndex].filter((a) =>
             a !== null
         ).map((tileVal: number) => {
-            return { l: tileVal, n: tileVal };
+            return tileNumToTileIndexer(tileVal);
         });
+
+        const board: number[][] = [];
+        for (let i = 0; i < this.gameBoard.length; i++) {
+            board.push([]);
+            for (let j = 0; j < this.gameBoard[i].length; j++) {
+                board[i].push(-1);
+            }
+        }
+
+        const mapTileType = (v: number): number => {
+            switch (v) {
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                case 6:
+                    return v;
+                case 7:
+                    return -1;
+                case 8:
+                    return -2;
+                case 9:
+                    return -4;
+                case 10:
+                case 11:
+                case 12:
+                case 13:
+                case 14:
+                case 15:
+                case 16:
+                    return -1;
+                default:
+                    return -1;
+            }
+        };
+
+        for (let i = 0; i < this.gameBoard.length; i++) {
+            for (let j = 0; j < this.gameBoard[i].length; j++) {
+                board[i][j] = mapTileType(this.gameBoard[i][j]);
+            }
+        }
+
+        const stockValues: number[] = this.scoreBoardPrice.map((p) => p * 100);
+        const stocksAvailable: number[] = this.scoreBoardAvailable.map((p) =>
+            p
+        );
 
         const stocks: number[][] = [];
         const playerNetWorths: number[] = [];
@@ -156,18 +204,83 @@ export class Game {
                 stocks[idx][j] = this.scoreBoardAtLastNetWorthsUpdate[i][j];
             }
             playerCash[idx] =
-                this.scoreBoardAtLastNetWorthsUpdate[i][NUM_CHAINS + 1];
+                this.scoreBoardAtLastNetWorthsUpdate[i][NUM_CHAINS + 0] * 100;
             playerNetWorths[idx] =
-                this.scoreBoardAtLastNetWorthsUpdate[i][NUM_CHAINS + 2];
+                this.scoreBoardAtLastNetWorthsUpdate[i][NUM_CHAINS + 1] * 100;
         }
 
         return {
             numPlayers,
-            board: [],
+            board,
             myTiles,
-            stocks: [],
-            stockValues: [],
+            stocks,
+            stockValues,
+            stocksAvailable,
+            playerNetWorths,
+            playerCash,
         };
+    }
+
+    getSaneStartableChains(): number[] {
+        const ret: number[] = [];
+        for (let i = 0; i < this.scoreBoardChainSize.length; i++) {
+            if (this.scoreBoardChainSize[i] > 0) {
+                ret.push(i);
+            }
+        }
+        return ret;
+    }
+
+    getSanePlayableTiles(playerIndex: number): Tile[] {
+        const isTilePlayable = (tileNum: number | null): boolean => {
+            if (tileNum == null) {
+                return false;
+            }
+            switch (tileNum) {
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                case 6:
+                    return true;
+                case 7:
+                case 8:
+                case 9:
+                case 10:
+                case 11:
+                case 12:
+                case 13:
+                case 14:
+                    return true;
+                case 15:
+                case 16:
+                default:
+                    return false;
+            }
+        };
+
+        const t1: number[] = this.tileRacks[playerIndex].filter((t) =>
+            t != null
+        );
+        const t2: number[] = t1.filter(
+            isTilePlayable,
+        );
+        const tiles = t2.map((tileNumber) => {
+            const tile = tileNumToTileIndexer(tileNumber);
+            return tile;
+        });
+        const t3 = [];
+        for (let i = 0; i < this.tileRacks[playerIndex].length; i++) {
+            const tr = this.tileRacks[playerIndex][i];
+            if (
+                tr != null && isTilePlayable(this.tileRackTypes[playerIndex][i])
+            ) {
+                t3.push(tileNumToTileIndexer(tr));
+            }
+        }
+        return t3;
     }
 
     processRevealedTileRackTiles(entries: PB_GameState_RevealedTileRackTile[]) {
