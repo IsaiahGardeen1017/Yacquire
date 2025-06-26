@@ -59,7 +59,7 @@ export class WebSocketClientCommunication extends ClientCommunication {
 
     private connect() {
         if (this.running) {
-            this.socket = new WebSocket("wss://isaiahgardeen.net:9999");
+            this.socket = new WebSocket("wss://isaiahgardeen.net/ws");
 
             this.socket.binaryType = "arraybuffer";
 
