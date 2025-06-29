@@ -11,6 +11,8 @@ export class WebSocketServerCommunication extends ServerCommunication {
     const server = http.createServer();
     const webSocketServer = new WebSocketServer({ noServer: true });
 
+    console.log('starting server');
+
     server.on('upgrade', (request, socket, head) => {
       webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
         webSocketServer.emit('connection', webSocket, request);
@@ -19,6 +21,7 @@ export class WebSocketServerCommunication extends ServerCommunication {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     webSocketServer.on('connection', (webSocket, connectionMessage) => {
+      console.log('new connection');
       const clientId = this.nextClientId.getId();
       this.clientIdToWebSocket.set(clientId, webSocket);
 
